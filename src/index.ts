@@ -1,6 +1,7 @@
 import express, { Request, Response } from 'express';
 import mongoose from 'mongoose';
 import TodoModel, { Todo } from '../models/todo';
+import UserModel from '../models/users'
 
 const app = express()
 app.use(express.json())
@@ -10,6 +11,9 @@ mongoose.connect('mongodb+srv://test1234:test1234@cluster0.v9lpw.mongodb.net/ToD
    console.log('database connected')
 })
 .catch((error) => console.log(error) )
+
+
+// Todos 
 
 app.get('/', async (_req: Request, res: Response) => {
     try {
@@ -71,5 +75,62 @@ app.put('/:id', async (req: Request, res: Response) => {
   });
 
 
+  // users
+
+  app.get('/users', async(req: Request, res: Response ) => {
+  try {
+    const users = await UserModel.find()
+     res.status(200).send(users)
+  } catch (error) {
+    console.log(error)
+    res.status(400).send(error)
+  }
+  })
+
+app.post('/users', async(req: Request, res: Response) => {
+try {
+  const {username, email, password} = req.body
+  const users= new UserModel({username, email, password})
+  await users.save()
+  res.status(200).send(users)
+} catch (error) {
+  console.log(error)
+  res.status(400).send(error)
+}
+})
+app.put('/users/:id', async(req: Request, res: Response) => {
+try {
+  const {id} = req.params
+  const{ username, email, password} = req.body
+
+  const user = await UserModel.findById(id)
+
+  if(user) {
+    user.username = username || user.username
+    user.email = email || user.email
+    user.password = password || user.password
+    await user.save()
+    res.status(200).send(user)
+  }
+
+} catch (error) {
+  console.log(error)
+  res.status(400).send(error)
+}
+})
   
+
+app.delete('/users/:id', async(req: Request, res: Response) => {
+
+  try {
+     const {id} = req.params
+     await UserModel.findByIdAndDelete(id)
+     res.status(200).send()
+} catch (error) {
+     console.log(error)
+     res.status(400).send(error)
+}
+})
+
+
 export default app

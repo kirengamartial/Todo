@@ -15,6 +15,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = __importDefault(require("express"));
 const mongoose_1 = __importDefault(require("mongoose"));
 const todo_1 = __importDefault(require("../models/todo"));
+const users_1 = __importDefault(require("../models/users"));
 const app = (0, express_1.default)();
 app.use(express_1.default.json());
 mongoose_1.default.connect('mongodb+srv://test1234:test1234@cluster0.v9lpw.mongodb.net/ToDoApp')
@@ -22,6 +23,7 @@ mongoose_1.default.connect('mongodb+srv://test1234:test1234@cluster0.v9lpw.mongo
     console.log('database connected');
 })
     .catch((error) => console.log(error));
+// Todos 
 app.get('/', (_req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
         const todos = yield todo_1.default.find();
@@ -74,6 +76,58 @@ app.delete('/:id', (req, res) => __awaiter(void 0, void 0, void 0, function* () 
     catch (error) {
         console.error(error);
         res.status(500).json({ message: 'Server Error' });
+    }
+}));
+// users
+app.get('/users', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const users = yield users_1.default.find();
+        res.status(200).send(users);
+    }
+    catch (error) {
+        console.log(error);
+        res.status(400).send(error);
+    }
+}));
+app.post('/users', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const { username, email, password } = req.body;
+        const users = new users_1.default({ username, email, password });
+        yield users.save();
+        res.status(200).send(users);
+    }
+    catch (error) {
+        console.log(error);
+        res.status(400).send(error);
+    }
+}));
+app.put('/users/:id', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const { id } = req.params;
+        const { username, email, password } = req.body;
+        const user = yield users_1.default.findById(id);
+        if (user) {
+            user.username = username || user.username;
+            user.email = email || user.email;
+            user.password = password || user.password;
+            yield user.save();
+            res.status(200).send(user);
+        }
+    }
+    catch (error) {
+        console.log(error);
+        res.status(400).send(error);
+    }
+}));
+app.delete('/users/:id', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const { id } = req.params;
+        yield users_1.default.findByIdAndDelete(id);
+        res.status(200).send();
+    }
+    catch (error) {
+        console.log(error);
+        res.status(400).send(error);
     }
 }));
 exports.default = app;
