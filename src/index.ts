@@ -9,7 +9,6 @@ app.use(express.json())
 mongoose.connect('mongodb+srv://test1234:test1234@cluster0.v9lpw.mongodb.net/ToDoApp')
 .then(() => {
    console.log('database connected')
-   app.listen(3000, () => console.log('server is running on port 3000'))
 })
 .catch((error) => console.log(error) )
 
