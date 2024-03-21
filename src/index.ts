@@ -1,6 +1,6 @@
 import express, { Request, Response } from 'express';
 import mongoose from 'mongoose';
-import TodoModel, { Todo } from '../models/todo';
+import TodoModel, { Todo } from '../models/Todo';
 import UserModel from '../models/Users';
 
 
