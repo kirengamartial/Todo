@@ -53,6 +53,7 @@ const node_test_1 = require("node:test");
         }));
     });
 });
+// users
 (0, node_test_1.describe)('GET /users', () => {
     test('should return an array of users', () => __awaiter(void 0, void 0, void 0, function* () {
         const response = yield (0, supertest_1.default)(index_1.default).get('/users');

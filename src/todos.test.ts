@@ -47,7 +47,7 @@ describe('POST /', () => {
 });
 
 
-
+// users
 describe('GET /users', () => {
   test('should return an array of users', async () => {
     const response = await request(app).get('/users');
