@@ -1,7 +1,7 @@
 import express, { Request, Response } from 'express';
 import mongoose from 'mongoose';
 import TodoModel, { Todo } from '../models/Todo';
-import UserModel from '../models/Users';
+import UserModel from '../models/users';
 
 
 const app = express();

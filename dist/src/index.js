@@ -15,7 +15,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = __importDefault(require("express"));
 const mongoose_1 = __importDefault(require("mongoose"));
 const Todo_1 = __importDefault(require("../models/Todo"));
-const Users_1 = __importDefault(require("../models/Users"));
+const users_1 = __importDefault(require("../models/users"));
 const app = (0, express_1.default)();
 app.use(express_1.default.json());
 mongoose_1.default.connect('mongodb+srv://test1234:test1234@cluster0.v9lpw.mongodb.net/ToDoApp')
@@ -81,7 +81,7 @@ app.delete('/:id', (req, res) => __awaiter(void 0, void 0, void 0, function* () 
 // Users routes
 app.get('/users', (_req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
-        const users = yield Users_1.default.find();
+        const users = yield users_1.default.find();
         res.status(200).json(users);
     }
     catch (error) {
@@ -95,7 +95,7 @@ app.post('/users', (req, res) => __awaiter(void 0, void 0, void 0, function* () 
         if (!username || !email || !password) {
             return res.status(400).json({ message: 'Missing required fields' });
         }
-        const newUser = new Users_1.default({ username, email, password });
+        const newUser = new users_1.default({ username, email, password });
         yield newUser.save();
         res.status(200).json(newUser);
     }
@@ -108,7 +108,7 @@ app.put('/users/:id', (req, res) => __awaiter(void 0, void 0, void 0, function* 
     try {
         const { id } = req.params;
         const { username, email, password } = req.body;
-        const user = yield Users_1.default.findById(id);
+        const user = yield users_1.default.findById(id);
         if (!user) {
             return res.status(404).json({ message: 'User not found' });
         }
@@ -126,7 +126,7 @@ app.put('/users/:id', (req, res) => __awaiter(void 0, void 0, void 0, function* 
 app.delete('/users/:id', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
         const { id } = req.params;
-        yield Users_1.default.findByIdAndDelete(id);
+        yield users_1.default.findByIdAndDelete(id);
         res.status(204).send();
     }
     catch (error) {
