@@ -18,8 +18,13 @@ const Todo_1 = __importDefault(require("../models/Todo"));
 const users_1 = __importDefault(require("../models/users"));
 const swagger_jsdoc_1 = __importDefault(require("swagger-jsdoc"));
 const swagger_ui_express_1 = __importDefault(require("swagger-ui-express"));
+const cookie_parser_1 = __importDefault(require("cookie-parser"));
+const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
+const bcrypt_1 = __importDefault(require("bcrypt"));
+const authMiddleware_1 = require("../middleware/authMiddleware");
 const app = (0, express_1.default)();
 app.use(express_1.default.json());
+app.use((0, cookie_parser_1.default)());
 const options = {
     definition: {
         openapi: "3.0.0",
@@ -51,6 +56,21 @@ const options = {
                         }
                     },
                     required: ["title", "completed"]
+                },
+                Users: {
+                    type: "object",
+                    properties: {
+                        username: {
+                            type: "string"
+                        },
+                        email: {
+                            type: "string"
+                        },
+                        password: {
+                            type: "string"
+                        }
+                    },
+                    required: ["username", "email", "password"]
                 }
             }
         }
@@ -87,7 +107,7 @@ mongoose_1.default.connect('mongodb+srv://test1234:test1234@cluster0.v9lpw.mongo
  *               items:
  *                 $ref: '#/components/schemas/Todo'
  */
-app.get('/', (_req, res) => __awaiter(void 0, void 0, void 0, function* () {
+app.get('/', authMiddleware_1.requireAuth, (_req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
         const todos = yield Todo_1.default.find();
         res.status(200).json(todos);
@@ -117,7 +137,7 @@ app.get('/', (_req, res) => __awaiter(void 0, void 0, void 0, function* () {
  *             schema:
  *               $ref: '#/components/schemas/Todo'
  */
-app.post('/', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+app.post('/', authMiddleware_1.requireAuth, (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
         const { title, completed } = req.body;
         if (!completed || !title) {
@@ -159,7 +179,7 @@ app.post('/', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
  *             schema:
  *               $ref: '#/components/schemas/Todo'
  */
-app.put('/:id', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+app.put('/:id', authMiddleware_1.requireAuth, (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
         const { id } = req.params;
         const { title, completed } = req.body;
@@ -195,7 +215,7 @@ app.put('/:id', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
  *       204:
  *         description: Todo deleted successfully
  */
-app.delete('/:id', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+app.delete('/:id', authMiddleware_1.requireAuth, (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
         const { id } = req.params;
         const deletedTodo = yield Todo_1.default.findByIdAndDelete(id);
@@ -209,8 +229,29 @@ app.delete('/:id', (req, res) => __awaiter(void 0, void 0, void 0, function* () 
         res.status(500).json({ message: 'Server Error' });
     }
 }));
+/**
+ * @swagger
+ * tags:
+ *   name: Users
+ *   description: users management endpoints
+ *
+ * @swagger
+ * /users:
+ *   get:
+ *     summary: a list of users displayed
+ *     description: retrieve a list of users
+ *     responses:
+ *       200:
+ *         description: a list of users
+ *         content:
+ *            application/json:
+ *              schema:
+ *                 type: array
+ *                 items:
+ *                    $ref: "#/components/schemas/Users"
+ */
 // Users routes
-app.get('/users', (_req, res) => __awaiter(void 0, void 0, void 0, function* () {
+app.get('/users', authMiddleware_1.requireAuth, (_req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
         const users = yield users_1.default.find();
         res.status(200).json(users);
@@ -220,22 +261,155 @@ app.get('/users', (_req, res) => __awaiter(void 0, void 0, void 0, function* () 
         res.status(500).json({ message: 'Server Error' });
     }
 }));
-app.post('/users', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+const handleErros = (err) => {
+    console.log(err.message, err.code);
+    let errorx = { username: '', email: '', password: '' };
+    if (err.code === 11000) {
+        errorx['email'] = 'Email already exists';
+    }
+    if (err.message.includes('User validation failed')) {
+        // console.log(Object.values(err.errors))
+        Object.values(err.errors).forEach((errory) => {
+            console.log(errory.properties);
+            const path = errory.properties.path;
+            errorx[path] = errory.properties.message;
+        });
+    }
+    return errorx;
+};
+const maxAge = 3 * 24 * 60 * 60;
+const createToken = (id) => {
+    return jsonwebtoken_1.default.sign({ id }, 'Martial secret', {
+        expiresIn: maxAge
+    });
+};
+/**
+ * @swagger
+ * /users:
+ *   post:
+ *     summary: create a new user
+ *     description: post a new user in the database
+ *     requestBody:
+ *       required: true
+ *       content:
+ *           application/json:
+ *              schema:
+ *                $ref: "#/components/schemas/Users"
+ *     responses:
+ *       200:
+ *         description: created user
+ *         content:
+ *            application/json:
+ *              schema:
+ *                  $ref: "#/components/schemas/Users"
+ */
+app.post('/users', authMiddleware_1.preventLoggedInUserAccess, (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
         const { username, email, password } = req.body;
-        if (!username || !email || !password) {
-            return res.status(400).json({ message: 'Missing required fields' });
-        }
         const newUser = new users_1.default({ username, email, password });
         yield newUser.save();
-        res.status(200).json(newUser);
+        const token = createToken(newUser._id);
+        res.cookie('jwt', token, { httpOnly: true, maxAge: maxAge * 1000 });
+        res.status(200).json({ user: newUser._id });
     }
     catch (error) {
-        console.error(error);
-        res.status(500).json({ message: 'Server Error' });
+        const errors = handleErros(error);
+        res.status(500).json({ errors });
     }
 }));
-app.put('/users/:id', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+/**
+ * @swagger
+ * /users/login:
+ *   post:
+ *     summary: Login user
+ *     description: Authenticate user credentials and generate JWT token for login.
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/Users'
+ *     responses:
+ *       200:
+ *         description: Login successful
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 user:
+ *                   type: string
+ *                   description: ID of the logged-in user
+ *       400:
+ *         description: Invalid email or password
+ */
+app.post('/users/login', authMiddleware_1.preventLoggedInUserAccess, (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    const { username, email, password } = req.body;
+    try {
+        const user = yield users_1.default.findOne({ email });
+        if (user) {
+            const auth = yield bcrypt_1.default.compare(password, user.password);
+            if (auth) {
+                const token = createToken(user._id);
+                res.cookie('jwt', token, { httpOnly: true, maxAge: maxAge * 1000 });
+                return res.status(200).json({ user: user._id });
+            }
+            res.status(400).json({ message: "incorrect password" });
+        }
+        res.status(400).json({ message: "incorrect email" });
+    }
+    catch (error) {
+        res.status(500).json(error);
+    }
+}));
+/**
+ * @swagger
+ * /users/logout:
+ *   get:
+ *     summary: Logout user
+ *     description: Clear JWT token from cookies to log out the user.
+ *     responses:
+ *       200:
+ *         description: Logout successful
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: string
+ *               description: Message indicating successful logout
+ */
+app.get('/users/logout', authMiddleware_1.requireAuth, (req, res) => {
+    res.cookie('jwt', '', { maxAge: 1 });
+    res.status(200).json('user is logout');
+});
+/**
+ * @swagger
+ * /users/{id}:
+ *   put:
+ *    summary: update a user
+ *    description: update a user with an id
+ *    parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         description: ID of the user to edit
+ *         schema:
+ *           type: string
+ *    requestBody:
+ *      required: true
+ *      content:
+ *        application/json:
+ *          schema:
+ *            $ref: "#/components/schemas/Users"
+ *    responses:
+ *      200:
+ *        description: updated user
+ *        content:
+ *          application/json:
+ *            schema:
+ *              $ref: "#/components/schemas/Users"
+ *
+ */
+app.put('/users/:id', authMiddleware_1.requireAuth, (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
         const { id } = req.params;
         const { username, email, password } = req.body;
@@ -254,7 +428,25 @@ app.put('/users/:id', (req, res) => __awaiter(void 0, void 0, void 0, function* 
         res.status(500).json({ message: 'Server Error' });
     }
 }));
-app.delete('/users/:id', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+/**
+ * @swagger
+ * /users/{id}:
+ *   delete:
+ *    summary: Delete a user
+ *    description: delete a user with an id
+ *    parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         description: ID of the user to delete
+ *         schema:
+ *           type: string
+ *    responses:
+ *      400:
+ *        description: user deleted successfully
+ *
+ */
+app.delete('/users/:id', authMiddleware_1.requireAuth, (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
         const { id } = req.params;
         const user = yield users_1.default.findByIdAndDelete(id);
@@ -268,4 +460,14 @@ app.delete('/users/:id', (req, res) => __awaiter(void 0, void 0, void 0, functio
         res.status(500).json({ message: 'Server Error' });
     }
 }));
+// app.get('/set-cookies',(req: Request, res: Response) => {
+//   res.cookie('newUser', false)
+//   res.cookie('isEmployee', true, { maxAge: 1000 * 60})
+//   res.send('you got the cookies')
+// })
+// app.get('/read-cookies', (req: Request, res: Response) => {
+//   const cookies = req.cookies
+//   console.log(cookies)
+//   res.json(cookies)
+// })
 exports.default = app;

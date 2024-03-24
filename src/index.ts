@@ -4,10 +4,15 @@ import TodoModel, { Todo } from '../models/Todo';
 import UserModel from '../models/users';
 import swaggerjsdoc from 'swagger-jsdoc';
 import swaggerui from 'swagger-ui-express';
+import cookieParser from 'cookie-parser';
+import Jwt from 'jsonwebtoken';
+import bcrypt from 'bcrypt';
+import { requireAuth, preventLoggedInUserAccess } from '../middleware/authMiddleware';
 
 
 const app = express();
 app.use(express.json());
+app.use(cookieParser())
 
 const options = {
   definition: {
@@ -40,6 +45,21 @@ const options = {
             }
           },
           required: ["title", "completed"]
+        },
+        Users: {
+          type: "object",
+          properties: {
+            username: {
+              type: "string"
+            },
+            email: {
+              type: "string"
+            },
+            password: {
+              type: "string"
+            }
+          },
+          required: ["username", "email", "password"]
         }
       }
     }
@@ -85,7 +105,7 @@ mongoose.connect('mongodb+srv://test1234:test1234@cluster0.v9lpw.mongodb.net/ToD
  *               items:
  *                 $ref: '#/components/schemas/Todo'
  */
-app.get('/', async (_req: Request, res: Response) => {
+app.get('/',requireAuth, async (_req: Request, res: Response) => {
   try {
     const todos = await TodoModel.find();
     res.status(200).json(todos);
@@ -117,7 +137,7 @@ app.get('/', async (_req: Request, res: Response) => {
  *               $ref: '#/components/schemas/Todo'
  */
 
-app.post('/', async (req: Request, res: Response) => {
+app.post('/',requireAuth, async (req: Request, res: Response) => {
   try {
     const { title, completed } = req.body;
     if (!completed || !title) {
@@ -160,7 +180,7 @@ app.post('/', async (req: Request, res: Response) => {
  *               $ref: '#/components/schemas/Todo'
  */
 
-app.put('/:id', async (req: Request, res: Response) => {
+app.put('/:id',requireAuth, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const { title, completed } = req.body;
@@ -201,7 +221,7 @@ app.put('/:id', async (req: Request, res: Response) => {
  *         description: Todo deleted successfully
  */
 
-app.delete('/:id', async (req: Request, res: Response) => {
+app.delete('/:id',requireAuth, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const deletedTodo = await TodoModel.findByIdAndDelete(id);
@@ -215,8 +235,33 @@ app.delete('/:id', async (req: Request, res: Response) => {
   }
 });
 
+
+
+
+/**
+ * @swagger
+ * tags:
+ *   name: Users
+ *   description: users management endpoints
+ * 
+ * @swagger
+ * /users:
+ *   get:
+ *     summary: a list of users displayed
+ *     description: retrieve a list of users
+ *     responses:
+ *       200:
+ *         description: a list of users
+ *         content:
+ *            application/json:
+ *              schema:
+ *                 type: array
+ *                 items:
+ *                    $ref: "#/components/schemas/Users"
+ */
+
 // Users routes
-app.get('/users', async (_req: Request, res: Response) => {
+app.get('/users',requireAuth, async (_req: Request, res: Response) => {
   try {
     const users = await UserModel.find();
     res.status(200).json(users);
@@ -226,22 +271,165 @@ app.get('/users', async (_req: Request, res: Response) => {
   }
 });
 
-app.post('/users', async (req: Request, res: Response) => {
+const handleErros = (err: any) => {
+  console.log(err.message, err.code)
+  let errorx = {username: '', email: '', password: ''}
+ if(err.code === 11000) {
+  errorx['email'] = 'Email already exists'
+ }
+
+  if(err.message.includes('User validation failed')){
+    // console.log(Object.values(err.errors))
+    Object.values(err.errors).forEach((errory: any) => {
+      console.log(errory.properties)
+      const path = errory.properties.path as keyof typeof errorx;
+      errorx[path] = errory.properties.message
+    })
+  }
+  return errorx
+  }
+
+  const maxAge = 3 * 24 * 60 * 60
+  const createToken = (id: any) => {
+   return Jwt.sign({ id }, 'Martial secret', {
+    expiresIn: maxAge
+   })
+  }
+
+
+/**
+ * @swagger
+ * /users:
+ *   post:
+ *     summary: create a new user
+ *     description: post a new user in the database
+ *     requestBody:
+ *       required: true
+ *       content:
+ *           application/json:
+ *              schema:
+ *                $ref: "#/components/schemas/Users"
+ *     responses:
+ *       200:
+ *         description: created user
+ *         content:
+ *            application/json:
+ *              schema:
+ *                  $ref: "#/components/schemas/Users"
+ */
+app.post('/users',preventLoggedInUserAccess, async (req: Request, res: Response) => {
   try {
     const { username, email, password } = req.body;
-    if (!username || !email || !password) {
-      return res.status(400).json({ message: 'Missing required fields' });
-    }
     const newUser = new UserModel({ username, email,  password });
     await newUser.save();
-    res.status(200).json(newUser);
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Server Error' });
+    const token = createToken(newUser._id)
+    res.cookie('jwt', token, { httpOnly: true, maxAge: maxAge * 1000})
+    res.status(200).json({user: newUser._id});
+  } catch (error: any) {
+    const errors = handleErros(error)
+    res.status(500).json({errors});
   }
 });
 
-app.put('/users/:id', async (req: Request, res: Response) => {
+
+
+/**
+ * @swagger
+ * /users/login:
+ *   post:
+ *     summary: Login user
+ *     description: Authenticate user credentials and generate JWT token for login.
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/Users'
+ *     responses:
+ *       200:
+ *         description: Login successful
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 user:
+ *                   type: string
+ *                   description: ID of the logged-in user
+ *       400:
+ *         description: Invalid email or password
+ */
+app.post('/users/login',preventLoggedInUserAccess, async(req: Request, res: Response) => {
+  const { username, email, password } = req.body
+  try {
+    const user = await UserModel.findOne({email})
+    if(user) {
+    const auth =  await bcrypt.compare(password, user.password)
+    if(auth) {
+      const token = createToken(user._id)
+      res.cookie('jwt', token, { httpOnly: true, maxAge: maxAge * 1000})
+      return res.status(200).json({user: user._id})
+    }
+     res.status(400).json({message: "incorrect password"})
+    }
+    res.status(400).json({message: "incorrect email"})
+  } catch (error) {
+   res.status(500).json(error)
+  }
+})
+
+
+/**
+ * @swagger
+ * /users/logout:
+ *   get:
+ *     summary: Logout user
+ *     description: Clear JWT token from cookies to log out the user.
+ *     responses:
+ *       200:
+ *         description: Logout successful
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: string
+ *               description: Message indicating successful logout
+ */
+
+app.get('/users/logout',requireAuth, (req: Request, res: Response) => {
+  res.cookie('jwt', '', {maxAge: 1})
+  res.status(200).json('user is logout')
+})
+
+
+/**
+ * @swagger
+ * /users/{id}:
+ *   put:
+ *    summary: update a user
+ *    description: update a user with an id
+ *    parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         description: ID of the user to edit
+ *         schema:
+ *           type: string
+ *    requestBody:
+ *      required: true
+ *      content: 
+ *        application/json:
+ *          schema:
+ *            $ref: "#/components/schemas/Users"
+ *    responses:
+ *      200:
+ *        description: updated user
+ *        content:
+ *          application/json:
+ *            schema:
+ *              $ref: "#/components/schemas/Users"
+ * 
+ */
+app.put('/users/:id',requireAuth, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const { username, email, password } = req.body;
@@ -263,7 +451,25 @@ app.put('/users/:id', async (req: Request, res: Response) => {
   }
 });
 
-app.delete('/users/:id', async (req: Request, res: Response) => {
+/**
+ * @swagger
+ * /users/{id}:
+ *   delete:
+ *    summary: Delete a user
+ *    description: delete a user with an id
+ *    parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         description: ID of the user to delete
+ *         schema:
+ *           type: string
+ *    responses:
+ *      400:
+ *        description: user deleted successfully
+ * 
+ */
+app.delete('/users/:id',requireAuth, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const user =  await UserModel.findByIdAndDelete(id);
@@ -276,5 +482,18 @@ app.delete('/users/:id', async (req: Request, res: Response) => {
     res.status(500).json({ message: 'Server Error' });
   }
 });
+
+// app.get('/set-cookies',(req: Request, res: Response) => {
+
+//   res.cookie('newUser', false)
+//   res.cookie('isEmployee', true, { maxAge: 1000 * 60})
+//   res.send('you got the cookies')
+// })
+// app.get('/read-cookies', (req: Request, res: Response) => {
+//   const cookies = req.cookies
+//   console.log(cookies)
+//   res.json(cookies)
+// })
+
 
 export default app;
