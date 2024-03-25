@@ -7,7 +7,6 @@ export interface User extends Document {
   username: string;
   email: string;
   password: string;
-  login(email: string, password: string): Promise<User>
 }
 
 const userSchema = new Schema({

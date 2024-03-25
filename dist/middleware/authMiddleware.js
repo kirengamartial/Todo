@@ -4,11 +4,14 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.preventLoggedInUserAccess = exports.requireAuth = void 0;
+const dotenv_1 = __importDefault(require("dotenv"));
 const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
+dotenv_1.default.config();
+const jwtSecret = process.env.JWT_SECRET;
 const requireAuth = (req, res, next) => {
     const token = req.cookies.jwt;
     if (token) {
-        jsonwebtoken_1.default.verify(token, "Martial secret", (err, decodedToken) => {
+        jsonwebtoken_1.default.verify(token, jwtSecret, (err, decodedToken) => {
             if (err) {
                 console.log(err.message);
                 res.status(400).json(err.message);

@@ -1,10 +1,14 @@
 import { Request, Response, NextFunction } from 'express';
+import dotenv from 'dotenv'
 import jwt from 'jsonwebtoken';
+
+dotenv.config()
+const jwtSecret = process.env.JWT_SECRET!;
 
 export const requireAuth = (req: Request, res: Response, next: NextFunction)  => {
     const token = req.cookies.jwt;
     if(token){
-        jwt.verify(token, "Martial secret", (err: jwt.VerifyErrors | null, decodedToken: any) => {
+        jwt.verify(token, jwtSecret, (err: jwt.VerifyErrors | null, decodedToken: any) => {
             if(err) {
                 console.log(err.message);
                 res.status(400).json(err.message);
