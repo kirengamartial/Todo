@@ -22,6 +22,8 @@ const cookie_parser_1 = __importDefault(require("cookie-parser"));
 const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
 const bcrypt_1 = __importDefault(require("bcrypt"));
 const authMiddleware_1 = require("../middleware/authMiddleware");
+const dotenv_1 = __importDefault(require("dotenv"));
+dotenv_1.default.config();
 const app = (0, express_1.default)();
 app.use(express_1.default.json());
 app.use((0, cookie_parser_1.default)());
@@ -77,7 +79,9 @@ const options = {
     },
     apis: ["./dist/src/*.js"]
 };
-mongoose_1.default.connect('mongodb+srv://test1234:test1234@cluster0.v9lpw.mongodb.net/ToDoApp')
+const mongodbUri = process.env.MONGODB_URI;
+const jwtSecret = process.env.JWT_SECRET;
+mongoose_1.default.connect(mongodbUri)
     .then(() => {
     const spacs = (0, swagger_jsdoc_1.default)(options);
     app.use('/api-docs', swagger_ui_express_1.default.serve, swagger_ui_express_1.default.setup(spacs));
@@ -279,7 +283,7 @@ const handleErros = (err) => {
 };
 const maxAge = 3 * 24 * 60 * 60;
 const createToken = (id) => {
-    return jsonwebtoken_1.default.sign({ id }, 'Martial secret', {
+    return jsonwebtoken_1.default.sign({ id }, jwtSecret, {
         expiresIn: maxAge
     });
 };

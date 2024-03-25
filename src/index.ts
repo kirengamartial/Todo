@@ -8,6 +8,9 @@ import cookieParser from 'cookie-parser';
 import Jwt from 'jsonwebtoken';
 import bcrypt from 'bcrypt';
 import { requireAuth, preventLoggedInUserAccess } from '../middleware/authMiddleware';
+import dotenv from 'dotenv'
+
+dotenv.config()
 
 
 const app = express();
@@ -67,7 +70,9 @@ const options = {
   apis: ["./dist/src/*.js"]
 };
 
-mongoose.connect('mongodb+srv://test1234:test1234@cluster0.v9lpw.mongodb.net/ToDoApp')
+const mongodbUri: string = process.env.MONGODB_URI!;
+const jwtSecret = process.env.JWT_SECRET!;
+mongoose.connect(mongodbUri)
   .then(() => {
     const spacs = swaggerjsdoc(options)
     app.use(
@@ -291,7 +296,7 @@ const handleErros = (err: any) => {
 
   const maxAge = 3 * 24 * 60 * 60
   const createToken = (id: any) => {
-   return Jwt.sign({ id }, 'Martial secret', {
+   return Jwt.sign({ id }, jwtSecret, {
     expiresIn: maxAge
    })
   }
