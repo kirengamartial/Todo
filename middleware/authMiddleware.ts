@@ -22,7 +22,7 @@ export const requireAuth = (req: Request, res: Response, next: NextFunction)  =>
 export const preventLoggedInUserAccess = (req: Request, res: Response, next: NextFunction) => {
     const token = req.cookies.jwt;
     if (token) {
-        res.status(200).json("login user can not access this endpoint")
+        res.status(403).json({ message: "Logged-in users cannot access this endpoint" });
     } else {
         next();
     }
